@@ -1,10 +1,4 @@
 local alpha = require("alpha")
-local dashboard = require("alpha.themes.dashboard")
-
-------------------------------------------------------------
--- ASCII art section
-------------------------------------------------------------
-local alpha = require("alpha")
 
 ------------------------------------------------------------
 -- ASCII art (TOP)
@@ -56,7 +50,6 @@ local ascii = {
   "                                                                                                    ",
   "                                                                                                    ",
   "                                                                                                    ",
-
   },
   opts = {
     position = "center",
@@ -65,43 +58,7 @@ local ascii = {
 }
 
 ------------------------------------------------------------
--- Header text
-------------------------------------------------------------
-local header = {
-  type = "text",
-  val = {
-    "",
-    "NVIM v" .. vim.version().major .. "." .. vim.version().minor .. "." .. vim.version().patch,
-  },
-  opts = {
-    position = "center",
-    hl = "AlphaHeader",
-  },
-}
-
-------------------------------------------------------------
--- Highlights
-------------------------------------------------------------
-vim.api.nvim_set_hl(0, "AlphaHeader", { link = "Normal" })
-vim.api.nvim_set_hl(0, "AlphaArt", { fg = "#6c7086" })
-
-------------------------------------------------------------
--- Layout (ASCII at TOP)
-------------------------------------------------------------
-alpha.setup({
-  layout = {
-    { type = "padding", val = 0 },
-    ascii,
-    { type = "padding", val = 1 },
-    header,
-  },
-  opts = {
-    margin = 2,
-  },
-})
-
-------------------------------------------------------------
--- Classic nvim text section
+-- Header text (classic nvim info block)
 ------------------------------------------------------------
 local header = {
   type = "text",
@@ -130,16 +87,19 @@ local header = {
 -- Highlights
 ------------------------------------------------------------
 vim.api.nvim_set_hl(0, "AlphaHeader", { link = "Normal" })
-vim.api.nvim_set_hl(0, "AlphaArt",    { link = "Comment" })  -- dimmer color for art
+vim.api.nvim_set_hl(0, "AlphaArt", { link = "Comment" })
 
+------------------------------------------------------------
+-- Layout
+------------------------------------------------------------
 alpha.setup({
   layout = {
-    { type = "padding", val = 10 },   -- 🔥 TOP spacing (adjust this)
+    { type = "padding", val = 10 },
     ascii,
     { type = "padding", val = 1 },
     header,
   },
   opts = {
-    margin = 3,  -- 🔥 horizontal centering tweak
+    margin = 3,
   },
 })

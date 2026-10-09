@@ -47,6 +47,19 @@ map({ "n", "v" }, "K", "10k", { desc = "Up 10" })
 -- ============================================================
 
 map("n", "<leader>t", function()
+  local in_terminal = vim.bo.buftype == "terminal"
+  local total_wins = #vim.api.nvim_list_wins()  -- across ALL tabs, not just this one
+
+  if in_terminal and total_wins == 1 then
+    -- toggleterm's close_split() calls nvim_win_close on this window.
+    -- Neovim refuses that when it's the last window in the whole
+    -- session (E444: Cannot close last window), which leaves toggleterm's
+    -- internal open/closed state stuck and you unable to toggle out.
+    -- Opening a blank window first guarantees something is left over
+    -- once the terminal split actually closes.
+    vim.cmd("new")
+  end
+
   require("toggleterm").toggle(2, nil, nil, "horizontal")
 end, { desc = "Toggle terminal (#2)" })
 
@@ -672,14 +685,78 @@ vim.keymap.set("v", "<leader>'", wrap_selection("'", "'"), { desc = "Wrap in ''"
 vim.keymap.set("v", "<leader>`", wrap_selection("`", "`"), { desc = "Wrap in ``" })
 vim.keymap.set("v", "<leader>(", wrap_selection("(", ")"), { desc = "Wrap in ()" })
 
+-- ============================================================
+-- SAFE BUFFER CLOSE — terminals are never touched by a file close
+-- ============================================================
+-- Closing a file buffer should only ever affect file windows.
+-- Instead of trying to make bdelete/window-close logic "aware" of
+-- terminals (which is what kept breaking), we sidestep the problem:
+-- hide any visible terminal windows *before* the close, do the
+-- close purely on file buffers, then restore the terminals
+-- afterward in their previous spot.
 
+local function get_visible_terminals()
+  local terms = {}
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(win)
+    if vim.bo[buf].buftype == "terminal" then
+      table.insert(terms, { win = win, buf = buf })
+    end
+  end
+  return terms
+end
 
+local function hide_terminals()
+  local hidden = {}
+  for _, t in ipairs(get_visible_terminals()) do
+    local name = vim.api.nvim_buf_get_name(t.buf)
+    if name:match("#toggleterm#") then
+      table.insert(hidden, "toggleterm")
+    else
+      table.insert(hidden, "r_console")
+    end
+    if vim.api.nvim_win_is_valid(t.win) and #vim.api.nvim_list_wins() > 1 then
+      vim.api.nvim_win_hide(t.win)  -- hides the window, keeps the process alive
+    end
+  end
+  return hidden
+end
 
+local function restore_terminals(hidden)
+  for _, kind in ipairs(hidden) do
+    if kind == "toggleterm" then
+      require("toggleterm").toggle(2, nil, nil, "horizontal")
+    elseif kind == "r_console" then
+      pcall(vim.cmd, "RShow")
+    end
+  end
+end
 
+local function safe_close_buffer()
+  local hidden = hide_terminals()
 
+  local buf = vim.api.nvim_get_current_buf()
+  local alt = vim.fn.bufnr("#")
+  if alt ~= -1 and alt ~= buf and vim.fn.buflisted(alt) == 1 then
+    vim.cmd("buffer " .. alt)
+  else
+    local ok = pcall(vim.cmd, "bnext")
+    if not ok then
+      vim.cmd("enew")
+    end
+  end
+  pcall(vim.cmd, "bdelete " .. buf)
 
+  local file_win = vim.api.nvim_get_current_win()
 
+  vim.schedule(function()
+    restore_terminals(hidden)
+    vim.schedule(function()
+      if vim.api.nvim_win_is_valid(file_win) then
+        vim.api.nvim_set_current_win(file_win)
+      end
+    end)
+  end)
+end
 
-
-
-
+map("n", "<leader>x", safe_close_buffer, { desc = "Delete buffer (terminal-safe)" })

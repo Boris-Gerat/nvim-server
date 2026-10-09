@@ -3,7 +3,6 @@
 -- ============================================================
 vim.opt.number = true
 vim.opt.relativenumber = true
-
 vim.keymap.set({ "n", "v" }, "j", "gj", { silent = true })
 vim.keymap.set({ "n", "v" }, "k", "gk", { silent = true })
 
@@ -17,7 +16,6 @@ vim.opt.formatoptions = "tcqnj"
 vim.opt.wrap = true
 vim.opt.linebreak = true
 vim.opt.breakindent = true
-
 vim.keymap.set("n", "<leader>cc", function()
   if vim.opt.colorcolumn:get()[1] ~= "" then
     vim.opt.colorcolumn = ""
@@ -29,14 +27,12 @@ vim.keymap.set("n", "<leader>cc", function()
     vim.notify("Auto-Break ON (" .. vim.g.my_colorcolumn .. " cols)", vim.log.levels.INFO)
   end
 end, { desc = "Toggle Ruler/Wrap" })
-
 vim.api.nvim_set_hl(0, "ColorColumn", { bg = "#44475a" })
 vim.opt.scrolloff = 10
 
 -- ============================================================
 -- JUPYTER / MOLTEN
 -- ============================================================
-
 vim.api.nvim_create_autocmd("BufWritePost", {
   pattern = "*.ipynb",
   callback = function()
@@ -48,7 +44,6 @@ vim.api.nvim_create_autocmd("BufWritePost", {
 })
 
 vim.o.conceallevel = 2
-
 vim.api.nvim_create_autocmd("FileType", {
   pattern = { "markdown", "tex", "text" },
   callback = function()
@@ -62,53 +57,21 @@ vim.api.nvim_create_autocmd("FileType", {
 })
 
 -- ============================================================
--- TERMINAL: unlist + lock window
+-- TERMINAL: unlist + lock window (native winfixbuf, Neovim 0.10+)
 -- ============================================================
-
--- 1. Unlist terminal buffers so bnext/bprevious never visits them,
---    and mark their window as the R console (locked)
+-- 'winfixbuf' pins this window to its current buffer at the Neovim
+-- core level: nothing (including internal tab/buffer-close reshuffling)
+-- can put a different buffer into it. This replaces the old
+-- TermOpen + BufWinEnter "kick it back out" pair, which reactively
+-- swapped buffers with nvim_win_set_buf and ended up nesting inside
+-- Neovim's own tab-close autocmd chain, crashing lualine's git diff
+-- jobstart(). With winfixbuf, that intrusion never happens in the
+-- first place, so there's nothing left to react to or crash.
 vim.api.nvim_create_autocmd("TermOpen", {
   callback = function(ev)
     vim.bo[ev.buf].buflisted = false
-    vim.api.nvim_win_set_var(0, "_is_r_console", true)
-  end,
-})
-
--- 2. If a normal buffer somehow enters the R console window, kick it out
-vim.api.nvim_create_autocmd("BufWinEnter", {
-  callback = function(ev)
-    if vim.bo[ev.buf].buftype ~= "" then return end
     local win = vim.api.nvim_get_current_win()
-    local ok, is_console = pcall(vim.api.nvim_win_get_var, win, "_is_r_console")
-    if not (ok and is_console) then return end
-
-    vim.schedule(function()
-      if not vim.api.nvim_win_is_valid(win) then return end
-
-      local r_buf = nil
-      for _, buf in ipairs(vim.api.nvim_list_bufs()) do
-        if vim.api.nvim_buf_is_valid(buf) and vim.bo[buf].buftype == "terminal" then
-          r_buf = buf
-          break
-        end
-      end
-
-      local target_win = nil
-      for _, w in ipairs(vim.api.nvim_list_wins()) do
-        local ok2, is_c = pcall(vim.api.nvim_win_get_var, w, "_is_r_console")
-        if not (ok2 and is_c) then
-          target_win = w
-          break
-        end
-      end
-
-      if r_buf then
-        vim.api.nvim_win_set_buf(win, r_buf)
-      end
-      if target_win then
-        vim.api.nvim_set_current_win(target_win)
-        vim.api.nvim_win_set_buf(target_win, ev.buf)
-      end
-    end)
+    vim.api.nvim_win_set_var(win, "_is_r_console", true)
+    vim.wo[win].winfixbuf = true
   end,
 })

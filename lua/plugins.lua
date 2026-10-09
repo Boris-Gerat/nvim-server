@@ -60,7 +60,7 @@ return {
     dependencies = { "nvim-tree/nvim-web-devicons" },
     event = "VimEnter",
     config = function()
-      require("alpha").setup(require("alpha.themes.dashboard").config)
+	require("dashboard") 
     end,
   },
 
@@ -373,34 +373,7 @@ return {
     },
   },
 
-  -- ────────────────────── Jupyter ──────────────────────
-  {
-    "benlubas/molten-nvim",
-    build = ":UpdateRemotePlugins",
-    dependencies = {
-      "3rd/image.nvim",
-    },
-    init = function()
-      vim.g.molten_image_provider = "image.nvim"
-      vim.g.molten_output_win_max_height = 40
-      vim.g.molten_auto_open_output = true
-    end,
-  },
 
-  {
-    "3rd/image.nvim",
-    config = function()
-      require("image").setup({
-        backend = "kitty",
-        processor = "magick_cli",
-        max_width = 200,
-        max_height = 40,
-        max_width_window_percentage = 80,
-        max_height_window_percentage = 50,
-        window_overlap_clear_enabled = true,
-      })
-    end,
-  },
 
   {
     "GCBallesteros/jupytext.nvim",
@@ -453,9 +426,22 @@ return {
 
 {
   "nvim-lualine/lualine.nvim",
-  dependencies = { "nvim-tree/nvim-web-devicons" },
+  dependencies = {
+    "nvim-tree/nvim-web-devicons",
+    "lewis6991/gitsigns.nvim",
+  },
   event = "VeryLazy",
   config = function()
+    -- gitsigns computes diff counts asynchronously and safely, even when
+    -- called from inside nested autocmd contexts (e.g. during tab close).
+    -- lualine's built-in "diff" source instead shells out via jobstart()
+    -- on every buffer/window change, which crashes when that happens
+    -- inside a nested nvim_win_set_buf call (our R-console rescue logic,
+    -- or Neovim's own internal tab-close handling). Pointing lualine's
+    -- diff component at gitsigns' precomputed status removes that
+    -- jobstart() call entirely, so it can no longer crash.
+    require("gitsigns").setup()
+
     require("lualine").setup({
       options = {
         theme                = "auto",
@@ -467,15 +453,27 @@ return {
         lualine_a = { "mode" },
         lualine_b = {
           "branch",
-          "diff",
-	{
-		  "diagnostics",
-		  sources  = { "nvim_diagnostic" },
-		  sections = { "error" },
-		  symbols  = { error = "⊗ " },
-		},
-				  },
-        lualine_c = { { "filename", path = 1 } },
+          {
+            "diff",
+            source = function()
+              local gs = vim.b.gitsigns_status_dict
+              if gs then
+                return {
+                  added    = gs.added,
+                  modified = gs.changed,
+                  removed  = gs.removed,
+                }
+              end
+            end,
+          },
+          {
+            "diagnostics",
+            sources  = { "nvim_diagnostic" },
+            sections = { "error" },
+            symbols  = { error = "⊗ " },
+          },
+        },
+                lualine_c = { { "filename", path = 1 } },
         lualine_x = { "filetype" },
         lualine_y = {},
         lualine_z = { "location" },
